@@ -2,9 +2,43 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const odbc = require('odbc');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
-app.use(cors());
+
+// Security Headers
+app.use(helmet());
+
+// CORS Restriction
+const allowedOrigins = ['http://localhost:5173', 'http://localhost:3000'];
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  }
+}));
+
+// Rate Limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use(limiter);
+
+const loginLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // Limit each IP to 5 login requests per hour
+  message: "Too many login attempts, please try again after an hour"
+});
+
 app.use(express.json());
 
 let pool;
@@ -33,7 +67,7 @@ app.get('/health', (req, res) => {
 // Middleware to protect routes
 const requireAdmin = (req, res, next) => {
   const password = req.headers['x-admin-password'];
-  console.log(`Auth Check: Received '${password}', Expected '${process.env.ADMIN_PASSWORD}'`);
+
   if (password === process.env.ADMIN_PASSWORD) {
     next();
   } else {
@@ -41,7 +75,7 @@ const requireAdmin = (req, res, next) => {
   }
 };
 
-app.post('/login', (req, res) => {
+app.post('/login', loginLimiter, (req, res) => {
   const { password } = req.body;
   if (password === process.env.ADMIN_PASSWORD) {
     res.json({ success: true });
@@ -55,12 +89,20 @@ app.get('/status', async (req, res) => {
     const result = await pool.query('SELECT 1 FROM SYSIBM.SYSDUMMY1');
     res.json({ connected: true, system: process.env.DB_SYSTEM });
   } catch (err) {
-    res.status(500).json({ connected: false, error: err.message });
+    console.error("Status Error:", err);
+    res.status(500).json({ connected: false, error: 'Database connection failed' });
   }
 });
 
 app.get('/tables/:library/:table', async (req, res) => {
   const { library, table } = req.params;
+
+  // SQL Injection Prevention: Allow only alphanumeric characters
+  const isValidIdentifier = /^[A-Z0-9]+$/i.test(library) && /^[A-Z0-9]+$/i.test(table);
+
+  if (!isValidIdentifier) {
+    return res.status(400).json({ error: 'Invalid library or table name' });
+  }
 
   const sql = `SELECT * FROM ${library}.${table} FETCH FIRST 100 ROWS ONLY`;
 
@@ -68,8 +110,8 @@ app.get('/tables/:library/:table', async (req, res) => {
     const rows = await pool.query(sql);
     res.json(rows);
   } catch (err) {
-    console.error("ERROR:", err);
-    res.status(500).json({ error: err.message });
+    console.error("Table Fetch Error:", err);
+    res.status(500).json({ error: 'Failed to fetch table data' });
   }
 });
 
@@ -114,7 +156,7 @@ app.get('/system-info', async (req, res) => {
     }));
   } catch (err) {
     console.error("System Info Error:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Failed to fetch system info' });
   }
 });
 
@@ -127,8 +169,8 @@ app.get('/employees', async (req, res) => {
     const rows = await pool.query(sql);
     res.json(rows);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    console.error("Get Employees Error:", err);
+    res.status(500).json({ error: 'Failed to fetch employees' });
   }
 });
 
@@ -141,8 +183,8 @@ app.post('/employees', requireAdmin, async (req, res) => {
     await pool.query(sql, [EMPID, EMPNAME, EMPCITY, EMPSTATE]);
     res.json({ message: 'Employee created', id: EMPID });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    console.error("Create Employee Error:", err);
+    res.status(500).json({ error: 'Failed to create employee' });
   }
 });
 
@@ -156,8 +198,8 @@ app.put('/employees/:id', requireAdmin, async (req, res) => {
     await pool.query(sql, [EMPNAME, EMPCITY, EMPSTATE, id]);
     res.json({ message: 'Employee updated' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    console.error("Update Employee Error:", err);
+    res.status(500).json({ error: 'Failed to update employee' });
   }
 });
 
@@ -170,8 +212,8 @@ app.delete('/employees/:id', requireAdmin, async (req, res) => {
     await pool.query(sql, [id]);
     res.json({ message: 'Employee deleted' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    console.error("Delete Employee Error:", err);
+    res.status(500).json({ error: 'Failed to delete employee' });
   }
 });
 
@@ -184,8 +226,8 @@ app.get('/customers', async (req, res) => {
     const rows = await pool.query(sql);
     res.json(rows);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    console.error("Get Customers Error:", err);
+    res.status(500).json({ error: 'Failed to fetch customers' });
   }
 });
 
@@ -198,8 +240,8 @@ app.post('/customers', requireAdmin, async (req, res) => {
     await pool.query(sql, [CUSNUM, LSTNAM, INIT, STREET, CITY, STATE, ZIPCOD, CDTLMT, CHGCOD, BALDUE, CDTDUE]);
     res.json({ message: 'Customer created', id: CUSNUM });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    console.error("Create Customer Error:", err);
+    res.status(500).json({ error: 'Failed to create customer' });
   }
 });
 
@@ -213,8 +255,8 @@ app.put('/customers/:id', requireAdmin, async (req, res) => {
     await pool.query(sql, [LSTNAM, INIT, STREET, CITY, STATE, ZIPCOD, CDTLMT, CHGCOD, BALDUE, CDTDUE, id]);
     res.json({ message: 'Customer updated' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    console.error("Update Customer Error:", err);
+    res.status(500).json({ error: 'Failed to update customer' });
   }
 });
 
@@ -227,8 +269,8 @@ app.delete('/customers/:id', requireAdmin, async (req, res) => {
     await pool.query(sql, [id]);
     res.json({ message: 'Customer deleted' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    console.error("Delete Customer Error:", err);
+    res.status(500).json({ error: 'Failed to delete customer' });
   }
 });
 
