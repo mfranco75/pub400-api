@@ -73,11 +73,56 @@ app.get('/tables/:library/:table', async (req, res) => {
   }
 });
 
+// --- SYSTEM INFO ---
+app.get('/system-info', async (req, res) => {
+  try {
+    // 1. User Storage Info
+    const userSql = `
+      SELECT AUTHORIZATION_NAME, STORAGE_USED, PREVIOUS_SIGNON 
+      FROM QSYS2.USER_INFO 
+      WHERE AUTHORIZATION_NAME = '${process.env.DB_USER.toUpperCase()}'
+    `;
+    // 2. Spool File Count (Recent 5)
+    const spoolSql = `
+      SELECT JOB_NAME, SPOOLED_FILE_NAME, FILE_NUMBER, CREATE_TIMESTAMP
+      FROM QSYS2.OUTPUT_QUEUE_ENTRIES_BASIC
+      WHERE USER_NAME = '${process.env.DB_USER.toUpperCase()}'
+      ORDER BY CREATE_TIMESTAMP DESC
+      FETCH FIRST 5 ROWS ONLY
+    `;
+
+    // Execute in parallel for performance
+    const [userResult, spoolResult] = await Promise.all([
+      pool.query(userSql),
+      pool.query(spoolSql)
+    ]);
+
+    const userInfo = userResult[0] || {};
+
+    // Helper to handle BigInt
+    const serialize = (obj) => {
+      return JSON.parse(JSON.stringify(obj, (key, value) =>
+        typeof value === 'bigint'
+          ? value.toString()
+          : value // return everything else unchanged
+      ));
+    };
+
+    res.json(serialize({
+      user: userInfo,
+      spool: spoolResult
+    }));
+  } catch (err) {
+    console.error("System Info Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // --- EMPLOYEE CRUD (MARIANOFR1.EMPPF1) ---
 
 // GET All Employees
 app.get('/employees', async (req, res) => {
-  const sql = `SELECT * FROM MARIANOFR1.EMPPF1 FETCH FIRST 100 ROWS ONLY`;
+  const sql = `SELECT * FROM MARIANOFR1.EMPPF1 ORDER BY EMPID FETCH FIRST 100 ROWS ONLY`;
   try {
     const rows = await pool.query(sql);
     res.json(rows);
@@ -124,6 +169,63 @@ app.delete('/employees/:id', requireAdmin, async (req, res) => {
   try {
     await pool.query(sql, [id]);
     res.json({ message: 'Employee deleted' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- CUSTOMER CRUD (MARIANOFR1.QCUSTCDT) ---
+
+// GET All Customers
+app.get('/customers', async (req, res) => {
+  const sql = `SELECT * FROM MARIANOFR1.QCUSTCDT FETCH FIRST 100 ROWS ONLY`;
+  try {
+    const rows = await pool.query(sql);
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST Create Customer
+app.post('/customers', requireAdmin, async (req, res) => {
+  const { CUSNUM, LSTNAM, INIT, STREET, CITY, STATE, ZIPCOD, CDTLMT, CHGCOD, BALDUE, CDTDUE } = req.body;
+  const sql = `INSERT INTO MARIANOFR1.QCUSTCDT (CUSNUM, LSTNAM, INIT, STREET, CITY, STATE, ZIPCOD, CDTLMT, CHGCOD, BALDUE, CDTDUE) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+  try {
+    await pool.query(sql, [CUSNUM, LSTNAM, INIT, STREET, CITY, STATE, ZIPCOD, CDTLMT, CHGCOD, BALDUE, CDTDUE]);
+    res.json({ message: 'Customer created', id: CUSNUM });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT Update Customer
+app.put('/customers/:id', requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { LSTNAM, INIT, STREET, CITY, STATE, ZIPCOD, CDTLMT, CHGCOD, BALDUE, CDTDUE } = req.body;
+  const sql = `UPDATE MARIANOFR1.QCUSTCDT SET LSTNAM=?, INIT=?, STREET=?, CITY=?, STATE=?, ZIPCOD=?, CDTLMT=?, CHGCOD=?, BALDUE=?, CDTDUE=? WHERE CUSNUM=?`;
+
+  try {
+    await pool.query(sql, [LSTNAM, INIT, STREET, CITY, STATE, ZIPCOD, CDTLMT, CHGCOD, BALDUE, CDTDUE, id]);
+    res.json({ message: 'Customer updated' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE Customer
+app.delete('/customers/:id', requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const sql = `DELETE FROM MARIANOFR1.QCUSTCDT WHERE CUSNUM=?`;
+
+  try {
+    await pool.query(sql, [id]);
+    res.json({ message: 'Customer deleted' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });

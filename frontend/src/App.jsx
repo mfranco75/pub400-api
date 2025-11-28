@@ -3,12 +3,16 @@ import axios from 'axios';
 import TableViewer from './TableViewer';
 import EmployeeCrud from './EmployeeCrud';
 import Dashboard from './Dashboard';
+import AboutModal from './AboutModal';
+import SystemInfo from './SystemInfo';
 import './App.css';
 
 function App() {
-  const [connected, setConnected] = useState(false);
+  const [dbConnected, setDbConnected] = useState(false);
+  const [backendConnected, setBackendConnected] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
   const [password, setPassword] = useState('');
   const [employees, setEmployees] = useState([]); // Shared state for dashboard
 
@@ -22,11 +26,22 @@ function App() {
   }, []);
 
   const checkConnection = async () => {
+    // Check Backend Health
+    try {
+      await axios.get(`${apiUrl}/health`);
+      setBackendConnected(true);
+    } catch (err) {
+      setBackendConnected(false);
+      setDbConnected(false); // If backend is down, DB is unreachable via API
+      return;
+    }
+
+    // Check DB Connection
     try {
       const res = await axios.get(`${apiUrl}/status`);
-      setConnected(res.data.connected);
+      setDbConnected(res.data.connected);
     } catch (err) {
-      setConnected(false);
+      setDbConnected(false);
     }
   };
 
@@ -37,8 +52,6 @@ function App() {
       if (res.data.success) {
         setIsAdmin(true);
         setShowLogin(false);
-        // Store password in memory (or localStorage if you want persistence)
-        // For this demo, we'll pass it down to EmployeeCrud
       }
     } catch (err) {
       alert('Invalid password');
@@ -56,83 +69,104 @@ function App() {
 
   return (
     <div className="App">
-      <header className="App-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 2rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <h1 style={{ margin: 0, fontSize: '1.5rem' }}>Pub400 Data Explorer</h1>
-          <span style={{
-            fontSize: '0.8rem',
-            padding: '4px 8px',
-            borderRadius: '12px',
-            background: connected ? '#e6fffa' : '#fff5f5',
-            color: connected ? '#047857' : '#c53030',
-            border: `1px solid ${connected ? '#047857' : '#c53030'}`,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '5px'
-          }}>
-            {connected ? '🟢 Connected to Pub400' : '🔴 Disconnected'}
-          </span>
+      <header className="glass-header">
+        <div className="logo-section" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <h1>Pub400 Data Explorer</h1>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <div className={`status-badge ${backendConnected ? 'connected' : 'disconnected'}`} title="Node.js API Status">
+              {backendConnected ? '🟢 Backend' : '🔴 Backend'}
+            </div>
+            <div className={`status-badge ${dbConnected ? 'connected' : 'disconnected'}`} title="IBM i Database Status">
+              {dbConnected ? '🟢 Pub400' : '🔴 Pub400'}
+            </div>
+          </div>
         </div>
 
-        <div>
+        <div className="nav-buttons">
+          <button
+            className="btn-secondary"
+            onClick={() => setShowAbout(true)}
+          >
+            ℹ️ About Demo
+          </button>
+
           {isAdmin ? (
-            <button onClick={handleLogout} style={{ background: '#4a5568', fontSize: '0.9rem' }}>Logout (Admin)</button>
+            <button onClick={handleLogout} className="btn-secondary">Logout (Admin)</button>
           ) : (
-            <button onClick={() => setShowLogin(true)} style={{ background: '#3182ce', fontSize: '0.9rem' }}>Admin Login</button>
+            <button onClick={() => setShowLogin(true)} className="btn-primary">Admin Login</button>
           )}
         </div>
       </header>
 
+      <AboutModal isOpen={showAbout} onClose={() => setShowAbout(false)} />
+
       {showLogin && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)',
-          display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000
+          display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000,
+          backdropFilter: 'blur(5px)'
         }}>
-          <form onSubmit={handleLogin} style={{ background: 'white', padding: '30px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '15px', minWidth: '300px' }}>
-            <h3>Admin Access</h3>
+          <form onSubmit={handleLogin} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '15px', minWidth: '300px', background: 'white' }}>
+            <h3 style={{ textAlign: 'center' }}>Admin Access</h3>
             <input
               type="password"
-              placeholder="Enter Password (admin123)"
+              placeholder="Enter Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              style={{ padding: '10px', border: '1px solid #ddd', borderRadius: '4px' }}
+              style={{ padding: '12px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '1rem' }}
             />
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-              <button type="button" onClick={() => setShowLogin(false)} style={{ background: '#718096' }}>Cancel</button>
-              <button type="submit" style={{ background: '#3182ce' }}>Login</button>
+              <button type="button" onClick={() => setShowLogin(false)} className="btn-secondary">Cancel</button>
+              <button type="submit" className="btn-primary">Login</button>
             </div>
           </form>
         </div>
       )}
 
-      <main style={{ padding: '20px' }}>
+      <main className="main-content">
+        <SystemInfo />
 
-        <Dashboard employees={employees} />
+        <div className="card">
+          <Dashboard employees={employees} />
+        </div>
 
-        <div style={{ position: 'relative' }}>
+        <div className="card" style={{ position: 'relative' }}>
           {!isAdmin && (
             <div style={{
               background: '#ebf8ff', borderLeft: '4px solid #3182ce', padding: '15px', marginBottom: '20px',
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+              borderRadius: '0 8px 8px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
             }}>
               <div>
                 <strong>👀 Read-Only Mode</strong>
                 <p style={{ margin: '5px 0 0', fontSize: '0.9rem', color: '#2c5282' }}>
-                  You are viewing the live data. To Edit or Delete, please log in as Admin.
+                  You are viewing live data from IBM i. Log in to enable Edit/Delete operations.
                 </p>
               </div>
             </div>
           )}
 
-          <EmployeeCrud isAdmin={isAdmin} password={password} onDataUpdate={handleDataUpdate} />
+          <div className="tooltip-container" style={{ width: '100%' }}>
+            <EmployeeCrud isAdmin={isAdmin} password={password} onDataUpdate={handleDataUpdate} />
+            <span className="tooltip-text">This component interacts directly with the DB2 database on the AS/400 server.</span>
+          </div>
         </div>
 
-        <hr style={{ margin: '40px 0', border: '0', borderTop: '1px solid #eee' }} />
-
-        <TableViewer />
+        <div className="card">
+          <h3 style={{ marginBottom: '1rem' }}>Legacy Data Viewer</h3>
+          <TableViewer />
+        </div>
       </main>
+
+      <footer className="footer">
+        <p>
+          Developed by <a href="https://www.linkedin.com/in/mariano-franco-1975-mdq/" target="_blank" rel="noopener noreferrer">Mariano Franco</a>
+          <br />
+          Powered by React, Node.js, and IBM i
+        </p>
+      </footer>
     </div>
   );
 }
 
 export default App;
+

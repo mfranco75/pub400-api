@@ -11,7 +11,7 @@ const Dashboard = ({ employees }) => {
         return Object.keys(counts).map(city => ({
             name: city,
             count: counts[city]
-        })).sort((a, b) => b.count - a.count).slice(0, 5); // Top 5 cities
+        })).sort((a, b) => b.count - a.count); // Show all cities sorted by count
     }, [employees]);
 
     const stateData = useMemo(() => {
