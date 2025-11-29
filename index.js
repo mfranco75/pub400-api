@@ -12,6 +12,10 @@ app.use(helmet());
 
 // CORS Restriction
 const allowedOrigins = ['http://localhost:5173', 'http://localhost:3000'];
+if (process.env.FRONTEND_URL) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+}
+
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
@@ -275,8 +279,8 @@ app.delete('/customers/:id', requireAdmin, async (req, res) => {
 });
 
 console.log("Attempting to start server...");
-app.listen(3000, () => {
-  console.log("API running on port 3000");
+app.listen(process.env.PORT || 3000, () => {
+  console.log(`API running on port ${process.env.PORT || 3000}`);
   // Keep alive hack
   setInterval(() => { }, 10000);
 });
