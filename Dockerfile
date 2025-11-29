@@ -9,11 +9,11 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Download and install IBM i Access Client Solutions - ODBC Driver
-# Using the public link for the Linux .deb package
-RUN curl -L -o ibm-iaccess.deb https://public.dhe.ibm.com/software/ibmi/products/odbc/debs/ibm-iaccess-1.1.0.28-1.0.amd64.deb \
-    && dpkg -i ibm-iaccess.deb \
-    && rm ibm-iaccess.deb
+# Download and install IBM i Access Client Solutions - ODBC Driver via Repository
+RUN curl https://public.dhe.ibm.com/software/ibmi/products/odbc/debs/dists/1.1.0/ibmi-acs-1.1.0.list -o /etc/apt/sources.list.d/ibmi-acs-1.1.0.list \
+    && apt-get update \
+    && apt-get install -y ibm-iaccess \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create app directory
 WORKDIR /usr/src/app
