@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import * as XLSX from 'xlsx';
 import './CustomerCrud.css'; // Reusing the same CSS
 
 const EmployeeCrud = ({ isAdmin, password, onDataUpdate }) => {
@@ -83,11 +84,21 @@ const EmployeeCrud = ({ isAdmin, password, onDataUpdate }) => {
         setIsEditing(false);
     };
 
+    const handleExport = () => {
+        const ws = XLSX.utils.json_to_sheet(employees);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Employees");
+        XLSX.writeFile(wb, "employees_EMPPF1.xlsx");
+    };
+
     return (
         <div className="crud-container">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h2>Employee Management (EMPPF1)</h2>
-                {loading && <span style={{ color: '#666' }}>Loading...</span>}
+                <div>
+                    <button onClick={handleExport} className="btn-secondary" style={{ marginRight: '10px' }}>Download Excel</button>
+                    {loading && <span style={{ color: '#666' }}>Loading...</span>}
+                </div>
             </div>
 
             {error && <div className="error">{error}</div>}
