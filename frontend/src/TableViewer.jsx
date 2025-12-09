@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import DataTable from './DataTable';
 import './TableViewer.css';
 
 const TableViewer = () => {
@@ -63,24 +64,7 @@ const TableViewer = () => {
 
             {data.length > 0 && (
                 <div className="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                {Object.keys(data[0]).map((key) => (
-                                    <th key={key}>{key}</th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {data.map((row, index) => (
-                                <tr key={index}>
-                                    {Object.values(row).map((val, i) => (
-                                        <td key={i}>{val}</td>
-                                    ))}
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                    <DataTable data={data} />
                 </div>
             )}
 

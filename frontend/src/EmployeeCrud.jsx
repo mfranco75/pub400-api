@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
+import DataTable from './DataTable';
 import './CustomerCrud.css'; // Reusing the same CSS
 
 const EmployeeCrud = ({ isAdmin, password, onDataUpdate }) => {
@@ -119,33 +120,22 @@ const EmployeeCrud = ({ isAdmin, password, onDataUpdate }) => {
             )}
 
             <div className="table-wrapper">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Name</th>
-                            <th>City</th>
-                            <th>State</th>
-                            {isAdmin && <th>Actions</th>}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {employees.map((emp) => (
-                            <tr key={emp.EMPID}>
-                                <td>{emp.EMPID}</td>
-                                <td>{emp.EMPNAME}</td>
-                                <td>{emp.EMPCITY}</td>
-                                <td>{emp.EMPSTATE}</td>
-                                {isAdmin && (
-                                    <td>
-                                        <button onClick={() => handleEdit(emp)} className="btn-small">Edit</button>
-                                        <button onClick={() => handleDelete(emp.EMPID)} className="btn-small btn-danger">Delete</button>
-                                    </td>
-                                )}
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+                <DataTable
+                    data={employees}
+                    columns={[
+                        { key: 'EMPID', label: 'ID' },
+                        { key: 'EMPNAME', label: 'Name' },
+                        { key: 'EMPCITY', label: 'City' },
+                        { key: 'EMPSTATE', label: 'State' }
+                    ]}
+                    defaultSortField="EMPNAME"
+                    actions={isAdmin ? (emp) => (
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <button onClick={() => handleEdit(emp)} className="btn-small">Edit</button>
+                            <button onClick={() => handleDelete(emp.EMPID)} className="btn-small btn-danger">Delete</button>
+                        </div>
+                    ) : null}
+                />
             </div>
         </div>
     );

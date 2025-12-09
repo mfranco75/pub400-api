@@ -62,7 +62,7 @@ async function initPool() {
   }
 }
 
-initPool();
+// initPool(); // Called at the end to ensure DB is ready before server starts
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
@@ -278,9 +278,11 @@ app.delete('/customers/:id', requireAdmin, async (req, res) => {
   }
 });
 
-console.log("Attempting to start server...");
-app.listen(process.env.PORT || 3000, () => {
-  console.log(`API running on port ${process.env.PORT || 3000}`);
-  // Keep alive hack
-  setInterval(() => { }, 10000);
+initPool().then(() => {
+  console.log("Attempting to start server...");
+  app.listen(process.env.PORT || 3000, () => {
+    console.log(`API running on port ${process.env.PORT || 3000}`);
+    // Keep alive hack
+    setInterval(() => { }, 10000);
+  });
 });
