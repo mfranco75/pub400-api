@@ -278,6 +278,166 @@ app.delete('/customers/:id', requireAdmin, async (req, res) => {
   }
 });
 
+// ---  NUEVAS RUTAS PARA BOT AI ---
+//    GET  /ai/schema
+//    POST /ai/query
+//    POST /ai/employees
+//    PUT  /ai/employees/:id
+
+// --- AI SCHEMA INFO --- SHEMA INJECTION
+
+app.get('/ai/schema', async (req, res) => {
+
+  const sql = `
+    SELECT COLUMN_NAME, DATA_TYPE, LENGTH
+    FROM QSYS2.SYSCOLUMNS
+    WHERE TABLE_SCHEMA = 'MARIANOFR1'
+    AND TABLE_NAME = 'EMPPF1'
+  `;
+
+  try {
+
+    const rows = await pool.query(sql);
+
+    res.json({
+      table: "MARIANOFR1.EMPPF1",
+      columns: rows
+    });
+
+  } catch (err) {
+
+    console.error("Schema Error:", err);
+
+    res.status(500).json({
+      error: "Failed to fetch schema"
+    });
+
+  }
+
+});
+
+// --- AI SQL QUERY ---
+
+app.post('/ai/query', async (req, res) => {
+
+  const { query } = req.body;
+
+  if (!query) {
+    return res.status(400).json({ error: "Missing SQL query" });
+  }
+
+  const normalized = query.trim().toLowerCase();
+
+  // Only allow SELECT
+  if (!normalized.startsWith("select")) {
+    return res.status(403).json({
+      error: "Only SELECT statements are allowed"
+    });
+  }
+
+  try {
+
+    const result = await pool.query(query);
+
+    res.json({
+      rows: result
+    });
+
+  } catch (err) {
+
+    console.error("AI Query Error:", err);
+
+    res.status(500).json({
+      error: "Query execution failed"
+    });
+
+  }
+
+});
+
+// --- AI CREATE EMPLOYEE ---
+
+app.post('/ai/employees', async (req, res) => {
+
+  const { EMPID, EMPNAME, EMPCITY, EMPSTATE } = req.body;
+
+  if (!EMPID || !EMPNAME) {
+    return res.status(400).json({
+      error: "EMPID and EMPNAME required"
+    });
+  }
+
+  const sql = `
+    INSERT INTO MARIANOFR1.EMPPF1
+    (EMPID, EMPNAME, EMPCITY, EMPSTATE)
+    VALUES (?, ?, ?, ?)
+  `;
+
+  try {
+
+    await pool.query(sql, [
+      EMPID,
+      EMPNAME,
+      EMPCITY,
+      EMPSTATE
+    ]);
+
+    res.json({
+      success: true
+    });
+
+  } catch (err) {
+
+    console.error("AI Insert Error:", err);
+
+    res.status(500).json({
+      error: "Insert failed"
+    });
+
+  }
+
+});
+
+
+// --- AI UPDATE EMPLOYEE ---
+
+app.put('/ai/employees/:id', async (req, res) => {
+
+  const { id } = req.params;
+  const { EMPCITY, EMPSTATE } = req.body;
+
+  const sql = `
+    UPDATE MARIANOFR1.EMPPF1
+    SET EMPCITY = ?, EMPSTATE = ?
+    WHERE EMPID = ?
+  `;
+
+  try {
+
+    await pool.query(sql, [
+      EMPCITY,
+      EMPSTATE,
+      id
+    ]);
+
+    res.json({
+      success: true
+    });
+
+  } catch (err) {
+
+    console.error("AI Update Error:", err);
+
+    res.status(500).json({
+      error: "Update failed"
+    });
+
+  }
+
+});
+
+// --- FIN RUTAS BOT AI ---
+
 initPool().then(() => {
   console.log("Attempting to start server...");
   app.listen(process.env.PORT || 3000, () => {
